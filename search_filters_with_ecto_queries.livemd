@@ -1,0 +1,155 @@
+# Building a filter form with Ecto: Livebook
+
+```elixir
+Mix.install([
+  {:ecto, "~> 3.8"}
+])
+```
+
+## The generic filter module
+
+This livebook is meant to be a companion playground for this article on the Zweitag Blog. In order to play with the code, you need a running livebook instance, either locally or in the cloud:
+
+Within the blog article, we describe the reasoning for building functions to aid in filtering. In order to make them reusable, we have put them into their own module. This is meant to be a place to also add more generic filter functions.
+
+```elixir
+defmodule EctoFilter.Query do
+  import Ecto.Query
+
+  # filter
+
+  def filter(query, _field_name, _operator, nil), do: query
+
+  def filter(query, field_name, :eq, value) do
+    where(query, [record], field(record, ^field_name) == ^value)
+  end
+
+  def filter(query, field_name, :in, values) do
+    where(query, [record], field(record, ^field_name) in ^values)
+  end
+
+  # assoc_filter
+
+  def assoc_filter(query, _assoc, _field, _operator, nil), do: query
+
+  def assoc_filter(query, assoc, field, :eq, value) do
+    query
+    |> left_join_once(assoc)
+    |> where([fp, {^assoc, s}], field(s, ^field) == ^value)
+  end
+
+  defp left_join_once(query, assoc) do
+    if has_named_binding?(query, assoc) do
+      query
+    else
+      join(query, :left, [fp], s in assoc(fp, ^assoc), as: ^assoc)
+    end
+  end
+end
+```
+
+## The application code
+
+We assume that you already have existing schemas within your application. For our example case we define them as follows:
+
+```elixir
+defmodule Author do
+  use Ecto.Schema
+
+  schema "authors" do
+    field(:first_name, :string)
+    field(:last_name, :string)
+  end
+end
+
+defmodule Article do
+  use Ecto.Schema
+
+  schema "articles" do
+    field(:title, :string)
+    field(:summary, :string)
+    field(:status, Ecto.Enum, values: [:draft, :published, :deleted])
+    belongs_to(:author, Author)
+
+    timestamps()
+  end
+end
+```
+
+As described in the blog article, we want to back a web form to handle the search form input data. In order to do this, we use an `embedded_schema` for our filter.
+
+```elixir
+defmodule ArticleFilter do
+  use Ecto.Schema
+  import Ecto.Changeset
+  import Ecto.Query
+  import EctoFilter.Query
+
+  embedded_schema do
+    field(:title_eq, :string)
+    field(:summary_eq, :string)
+    field(:status_in, {:array, :string})
+    field(:author_first_name_eq, :string)
+    field(:author_last_name_eq, :string)
+    field(:most_relevant, :boolean)
+  end
+
+  def build_filter(attrs) do
+    cast(%__MODULE__{}, attrs, [
+      :title_eq,
+      :summary_eq,
+      :status_in,
+      :author_first_name_eq,
+      :author_last_name_eq,
+      :most_relevant
+    ])
+    |> apply_action(:build)
+  end
+
+  def apply(query, filter) do
+    query
+    |> filter(:title, :eq, filter.title_eq)
+    |> filter(:summary, :eq, filter.summary_eq)
+    |> filter(:status, :in, filter.status_in)
+    |> assoc_filter(:author, :first_name, :eq, filter.author_first_name_eq)
+    |> assoc_filter(:author, :last_name, :eq, filter.author_last_name_eq)
+    |> filter_most_relevant(filter.most_relevant)
+  end
+
+  defp filter_most_relevant(query, true) do
+    query
+    |> where([article], article.status == :published)
+    |> where([article], article.inserted_at > ago(1, "month"))
+  end
+
+  defp filter_most_relevant(query, _), do: query
+end
+```
+
+The following code shows how the filter can be used within your application code. Using the `embedded_schema` as described above also allows us to handle casting errors for our inputs; and we would also be able to add custom validations to our filter inputs.
+
+```elixir
+# Building a filter from valid input
+{:ok, filter} =
+  ArticleFilter.build_filter(%{
+    "title_eq" => "hello",
+    "summary_eq" => "foo",
+    "status_in" => ["draft", "published"],
+    "author_first_name_eq" => "first_name",
+    "author_last_name_eq" => "last_name",
+    "most_relevant" => "1"
+  })
+
+query = ArticleFilter.apply(Article, filter)
+dbg(query)
+
+# Invalid input leads to an error
+{:error, changeset} =
+  ArticleFilter.build_filter(%{
+    "title_eq" => 23
+  })
+
+dbg(changeset)
+
+nil
+```
