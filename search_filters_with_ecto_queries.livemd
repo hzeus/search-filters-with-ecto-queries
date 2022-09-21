@@ -1,4 +1,4 @@
-# Building a filter form with Ecto: Livebook
+# Search Filters with Ecto Queries: Accompanying Livebook
 
 ```elixir
 Mix.install([
@@ -10,7 +10,7 @@ Mix.install([
 
 [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2Fhzeus%2Fsearch-filters-with-ecto-queries%2Fblob%2Fmain%2Fsearch_filters_with_ecto_queries.livemd)
 
-This livebook is meant to be a companion playground for this article on the Zweitag Blog. In order to play with the code, you need a running livebook instance, either locally or in the cloud via the "Run in Livebook" badge.
+This livebook is meant to be a companion playground for [this article on the Zweitag Blog](https://www.zweitag.de/blog/search-filters-with-ecto-queries/). In order to play with the code, you need a running livebook instance, either locally or in the cloud via the "Run in Livebook" badge.
 
 Within the blog article, we describe the reasoning for building functions to aid in filtering. In order to make them reusable, we have put them into their own module. This is meant to be a place to also add more generic filter functions.
 
