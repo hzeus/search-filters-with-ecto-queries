@@ -37,14 +37,14 @@ defmodule EctoFilter.Query do
   def assoc_filter(query, assoc, field, :eq, value) do
     query
     |> left_join_once(assoc)
-    |> where([fp, {^assoc, s}], field(s, ^field) == ^value)
+    |> where([record, {^assoc, s}], field(s, ^field) == ^value)
   end
 
   defp left_join_once(query, assoc) do
     if has_named_binding?(query, assoc) do
       query
     else
-      join(query, :left, [fp], s in assoc(fp, ^assoc), as: ^assoc)
+      join(query, :left, [record], s in assoc(record, ^assoc), as: ^assoc)
     end
   end
 end
